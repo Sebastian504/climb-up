@@ -40,10 +40,10 @@ class Player:
             tilemap.get(self.x, self.y + 1) == LADDER):
             if tilemap.get(self.x, self.y) != LADDER:
                 if tilemap.get(self.x - 1, self.y) == LADDER:
-                    self.px = (self.x - 1) * TILE_SIZE
+                    self.x = self.x - 1
                 elif tilemap.get(self.x + 1, self.y) == LADDER:
-                    self.px = (self.x + 1) * TILE_SIZE
-                self.x = int(self.px // TILE_SIZE)
+                    self.x = self.x + 1
+                self.px = self.x * TILE_SIZE + TILE_SIZE // 2 - 6
             self.vy = -MOVE_SPEED
             self.state = "climbing"
         elif keys[pygame.K_DOWN] and (
@@ -51,10 +51,10 @@ class Player:
             tilemap.get(self.x, int((self.py + TILE_SIZE + 4) // TILE_SIZE)) == LADDER):
             if tilemap.get(self.x, self.y) != LADDER:
                 if tilemap.get(self.x - 1, self.y) == LADDER:
-                    self.px = (self.x - 1) * TILE_SIZE
+                    self.x = self.x - 1
                 elif tilemap.get(self.x + 1, self.y) == LADDER:
-                    self.px = (self.x + 1) * TILE_SIZE
-                self.x = int(self.px // TILE_SIZE)
+                    self.x = self.x + 1
+                self.px = self.x * TILE_SIZE + TILE_SIZE // 2 - 6
             self.vy = MOVE_SPEED
             self.state = "climbing"
         elif not (tilemap.get(self.x, self.y + 1) in [EARTH, STONE, LADDER]) and not on_ladder:
@@ -124,13 +124,12 @@ class Opponents:
             elif dy < 0 and (current == LADDER or tilemap.get(ox, oy - 1) == LADDER):
                 if tilemap.get(ox, oy - 1) not in [EARTH, STONE]:
                     vy = -MOVE_SPEED
+
             if not (below == AIR and current != LADDER):
                 step = 1 if dx > 0 else -1
                 target_tile = tilemap.get(ox + step, oy)
                 below_target = tilemap.get(ox + step, oy + 1)
-                if (target_tile in [AIR, LADDER]) and (below_target in [EARTH, STONE, LADDER]):
-                    vx = step * MOVE_SPEED
-                elif target_tile in [AIR, LADDER] and below_target == AIR:
+                if target_tile not in [EARTH, STONE] and below_target in [EARTH, STONE, LADDER]:
                     vx = step * MOVE_SPEED
 
             new_positions.append((ox_px + vx, oy_px + vy))

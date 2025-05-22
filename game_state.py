@@ -17,6 +17,8 @@ class GameState:
         for ox_px, oy_px in self.opponents.positions:
             opp_rect = pygame.Rect(ox_px, oy_px, TILE_SIZE, TILE_SIZE)
             if player_rect.colliderect(opp_rect):
-                print("Game Over: Caught by an opponent!")
                 return True
         return False
+
+    def check_win_condition(self):
+        return self.player.py <= 0
