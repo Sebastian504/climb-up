@@ -5,8 +5,8 @@ from entities import Player, Opponents
 from constants import TILE_SIZE
 
 class GameState:
-    def __init__(self):
-        self.tilemap, player_start, opp_tiles = load_level_from_file("level1.txt")
+    def __init__(self, level_filename):
+        self.tilemap, player_start, opp_tiles = load_level_from_file(level_filename)
         self.player = Player(*player_start)
         self.opponents = Opponents(opp_tiles)
         self.running = True
