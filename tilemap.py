@@ -3,22 +3,55 @@ import pygame
 from constants import *
 
 class TileMap:
-    def __init__(self, grid):
-        self.grid = grid
+    def __init__(self, source):
+        if isinstance(source, str):
+            # Load from file
+            with open(source, 'r') as f:
+                lines = f.readlines()
+            lines = [line.rstrip('\n').ljust(GRID_WIDTH)[:GRID_WIDTH] for line in lines]
+            while len(lines) < GRID_HEIGHT:
+                lines.append(' ' * GRID_WIDTH)
+            lines = lines[:GRID_HEIGHT]  # Trim if too many lines
+            self.grid = [[char for char in line] for line in lines]
+        else:
+            # Direct grid initialization
+            self.grid = source
+        self.height = GRID_HEIGHT
+        self.width = GRID_WIDTH
 
     def get(self, x, y):
-        if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-            return self.grid[y][x]
+        try:
+            if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                return self.grid[y][x]
+        except IndexError:
+            pass
         return STONE
 
     def set(self, x, y, value):
-        if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-            self.grid[y][x] = value
+        try:
+            if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                self.grid[y][x] = value
+        except IndexError:
+            pass
 
     def draw(self, surface):
         for y, row in enumerate(self.grid):
             for x, tile in enumerate(row):
-                self.draw_tile(surface, x, y, tile)
+                if tile == DIAMOND:
+                    # Draw upside-down triangle for diamond
+                    center_x = x * TILE_SIZE + TILE_SIZE // 2
+                    top_y = y * TILE_SIZE + TILE_SIZE - 2  # Bottom point
+                    left_x = center_x - 6  # Half of edge length
+                    right_x = center_x + 6
+                    bottom_y = y * TILE_SIZE + 2  # Top points
+                    
+                    pygame.draw.polygon(
+                        surface,
+                        TILE_COLORS[DIAMOND],
+                        [(center_x, top_y), (left_x, bottom_y), (right_x, bottom_y)]
+                    )
+                elif tile != AIR:
+                    self.draw_tile(surface, x, y, tile)
 
     def draw_tile(self, surface, x, y, tile):
         color = TILE_COLORS.get(tile, (255, 0, 0))

@@ -1,4 +1,4 @@
-# entities.py
+# player.py
 import pygame
 from constants import *
 
@@ -80,8 +80,8 @@ class Player:
         
         # For climbability, we'll be a bit more lenient (allow mounting from nearby)
         is_climbable = on_ladder or (
-            (tilemap.get(current_tile_x - 1, current_y) == LADDER and px_in_tile < 6) or
-            (tilemap.get(current_tile_x + 1, current_y) == LADDER and px_in_tile > TILE_SIZE - 6)
+            (tilemap.get(current_tile_x - 1, current_y) == LADDER and px_in_tile < 3) or
+            (tilemap.get(current_tile_x + 1, current_y) == LADDER and px_in_tile > TILE_SIZE - 3)
         )
         
         return on_ladder, is_climbable
@@ -89,12 +89,16 @@ class Player:
     def _find_nearest_ladder(self, tilemap, current_tile_x, current_y, px_in_tile):
         """Find the nearest ladder that can be mounted"""
         target_x = None
-        if tilemap.get(current_tile_x - 1, current_y) == LADDER and px_in_tile < 6:
-            target_x = current_tile_x - 1
-        elif tilemap.get(current_tile_x + 1, current_y) == LADDER and px_in_tile > TILE_SIZE - 6:
-            target_x = current_tile_x + 1
-        elif tilemap.get(current_tile_x, current_y) == LADDER:
+        if tilemap.get(current_tile_x, current_y) == LADDER:
             target_x = current_tile_x
+        elif tilemap.get(current_tile_x, current_y + 1) == LADDER:
+            target_x = current_tile_x
+        elif tilemap.get(current_tile_x - 1, current_y) == LADDER and px_in_tile < 3:
+            target_x = current_tile_x - 1
+        elif tilemap.get(current_tile_x + 1, current_y) == LADDER and px_in_tile > TILE_SIZE - 3:
+            target_x = current_tile_x + 1
+        else:
+            target_x = None
         return target_x
     
     def _center_on_ladder(self, target_x, current_tile_x, on_ladder):
@@ -201,103 +205,9 @@ class Player:
             self.py = (self.y // 1) * TILE_SIZE
             self.vy = 0
             self.state = "idle"
-
+    
     def draw(self, surface):
         cx = self.px + TILE_SIZE // 2
         cy = self.py + TILE_SIZE // 2
         pygame.draw.circle(surface, PLAYER_COLOR, (int(cx), int(cy)), 6)
         #pygame.draw.rect(surface, PLAYER_COLOR, (self.px, self.py, TILE_SIZE, TILE_SIZE))
-
-
-class Opponents:
-    def __init__(self, tile_positions):
-        self.positions = [(x * TILE_SIZE, y * TILE_SIZE) for x, y in tile_positions]
-
-    def update(self, player, tilemap):
-        new_positions = []
-        for ox_px, oy_px in self.positions:
-            ox = int(ox_px // TILE_SIZE)
-            oy = int(oy_px // TILE_SIZE)
-            dx = player.px - ox_px  # Horizontal distance to player
-            dy = player.py - oy_px  # Vertical distance to player
-
-            # Initialize velocity
-            vx, vy = 0, 0
-            
-            # Check surrounding tiles
-            current_tile = tilemap.get(ox, oy)  # Current tile
-            below_tile = tilemap.get(ox, oy + 1)  # Tile below
-            
-            # RULE 1: Apply gravity if not on solid ground or ladder
-            is_falling = below_tile == AIR and current_tile != LADDER
-            if is_falling:
-                vy = MOVE_SPEED  # Fall down
-            
-            # RULE 2: Climb ladders based on player position
-            elif current_tile == LADDER:  # We're on a ladder
-                if dy < -2:  # Player is at least 2 pixels above
-                    vy = -MOVE_SPEED  # Climb up
-                elif dy > 2:  # Player is at least 2 pixels below
-                    # Check if we can climb down (no solid tile below)
-                    if below_tile not in [EARTH, STONE]:
-                        vy = MOVE_SPEED  # Climb down
-            
-            # RULE 3: Move horizontally toward player when safe
-            # Only allow horizontal movement if not falling
-            if not is_falling:
-                # Determine direction toward player
-                step = 1 if dx > 0 else -1  # Move right if player is to the right, otherwise left
-                
-                # Check if moving horizontally is possible
-                target_tile = tilemap.get(ox + step, oy)  # Tile we want to move into
-                below_target = tilemap.get(ox + step, oy + 1)  # Tile below our target position
-                
-                # Only move horizontally if not blocked by a wall
-                if target_tile not in [EARTH, STONE]:
-                    # Check if moving would bring us closer to player
-                    moving_toward_player = (step > 0 and dx > 0) or (step < 0 and dx < 0)
-                    
-                    # Check if we're at the edge (no ground below next position)
-                    at_edge = below_target == AIR and below_target not in [EARTH, STONE, LADDER]
-                    
-                    if moving_toward_player:
-                        # CASE 1: Safe to move (ground or ladder below target position)
-                        if below_target in [EARTH, STONE, LADDER] or current_tile == LADDER:
-                            vx = step * MOVE_SPEED
-                        
-                        # CASE 2: At the edge but not falling yet
-                        # This allows opponents to move right up to the edge
-                        elif at_edge and not (dy > 8):
-                            # Calculate exact position after movement
-                            next_px = ox_px + step * MOVE_SPEED
-                            # Check if we would still be on solid ground after moving
-                            # This ensures we stop exactly at the edge, not one tile away
-                            if int(next_px // TILE_SIZE) == ox:
-                                vx = step * MOVE_SPEED
-                        
-                        # CASE 3: Moving would cause falling, but player is significantly below (8+ pixels)
-                        elif dy > 8:  # Player is at least 8 pixels below
-                            vx = step * MOVE_SPEED  # Move and fall toward player
-            
-            # Ensure we're not stuck in walls
-            next_x = ox_px + vx
-            next_y = oy_px + vy
-            next_tile_x = int(next_x // TILE_SIZE)
-            next_tile_y = int(next_y // TILE_SIZE)
-            
-            if tilemap.get(next_tile_x, next_tile_y) in [EARTH, STONE]:
-                # Don't move into walls
-                if vx != 0:
-                    vx = 0
-                if vy != 0:
-                    vy = 0
-            
-            # Add movement to position
-            new_positions.append((ox_px + vx, oy_px + vy))
-        
-        self.positions = new_positions
-
-    def draw(self, surface):
-        for ox_px, oy_px in self.positions:
-            rect = pygame.Rect(int(ox_px), int(oy_px), TILE_SIZE, TILE_SIZE)
-            pygame.draw.rect(surface, OPPONENT_COLOR, rect)

@@ -8,17 +8,22 @@ SCREEN_WIDTH = TILE_SIZE * GRID_WIDTH
 SCREEN_HEIGHT = TILE_SIZE * GRID_HEIGHT
 
 # Tile types
-AIR = 0
-EARTH = 1
-STONE = 2
-LADDER = 3
+AIR = ' '
+EARTH = '#'
+STONE = 'S'
+LADDER = 'H'
+PLAYER = 'P'
+OPPONENT = 'O'
+EXIT = 'E'
+DIAMOND = 'v'
 
-# Colors (grayscale)
+# Colors
 TILE_COLORS = {
-    AIR: (30, 30, 30),
+    AIR: (0, 0, 0),
     EARTH: (100, 100, 100),
     STONE: (180, 180, 180),
     LADDER: (0, 0, 0),
+    DIAMOND: (255, 255, 0),  # Yellow for diamonds
 }
 
 # Directions
