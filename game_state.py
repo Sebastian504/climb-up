@@ -3,17 +3,20 @@ import pygame
 from tilemap import TileMap
 from constants import PLAYER, OPPONENT, DIAMOND, AIR, EXIT
 from player import Player
-from opponent import Opponents
+from opponent import Opponent
 from constants import TILE_SIZE
 
 class GameState:
     def __init__(self, level_filename):
         self.tilemap = TileMap(level_filename)
         self.player = None
-        self.opponents = Opponents([])
+        self.opponents = []
         self.running = True
         self.diamonds_remaining = 0
-        self.opponent_positions = []
+        
+        # Create sprite groups
+        self.all_sprites = pygame.sprite.Group()
+        self.opponents_group = pygame.sprite.Group()
         
         # Find player, opponents, and count diamonds in the level
         for y in range(self.tilemap.height):
@@ -21,22 +24,23 @@ class GameState:
                 tile = self.tilemap.get(x, y)
                 if tile == PLAYER:
                     self.player = Player(x, y)
+                    self.all_sprites.add(self.player)
                     self.tilemap.set(x, y, AIR)
                 elif tile == OPPONENT:
-                    self.opponent_positions.append((x, y))
+                    # Create opponent at the correct tile position
+                    # Add 1 to x to fix the positioning issue
+                    opponent = Opponent(x + 1, y)
+                    self.opponents.append(opponent)
+                    self.opponents_group.add(opponent)
+                    self.all_sprites.add(opponent)
                     self.tilemap.set(x, y, AIR)
                 elif tile == DIAMOND:
                     self.diamonds_remaining += 1
-        
-        # Initialize opponents after collecting all positions
-        self.opponents = Opponents(self.opponent_positions)
 
     def check_game_over(self):
-        player_rect = pygame.Rect(self.player.px, self.player.py, TILE_SIZE, TILE_SIZE)
-        for ox_px, oy_px in self.opponents.positions:
-            opp_rect = pygame.Rect(ox_px, oy_px, TILE_SIZE, TILE_SIZE)
-            if player_rect.colliderect(opp_rect):
-                return True
+        # Use pygame's built-in sprite collision detection
+        if pygame.sprite.spritecollideany(self.player, self.opponents_group):
+            return True
         return False
 
     def check_win_condition(self):
@@ -45,10 +49,12 @@ class GameState:
             return False
         
         # Win condition: All diamonds collected and player reached the top row
-        return self.player.y == 0 or self.tilemap.get(self.player.x, self.player.y) == EXIT
+        player_x, player_y = self.player.get_tile_position()
+        return player_y == 0 or self.tilemap.get(player_x, player_y) == EXIT
 
     def check_diamond_collection(self):
         # Check if player is on a diamond
-        if self.tilemap.get(self.player.x, self.player.y) == DIAMOND:
-            self.tilemap.set(self.player.x, self.player.y, AIR)
+        player_x, player_y = self.player.get_tile_position()
+        if self.tilemap.get(player_x, player_y) == DIAMOND:
+            self.tilemap.set(player_x, player_y, AIR)
             self.diamonds_remaining -= 1

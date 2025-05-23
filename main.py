@@ -102,28 +102,51 @@ def main():
             # Update game state
             game.player.handle_input(keys, game.tilemap, current_time)
             game.check_diamond_collection()  # Check if player collected a diamond
-            game.opponents.update(game.player, game.tilemap)
+            
+            # Update each opponent individually
+            for opponent in game.opponents:
+                opponent.update(game.player, game.tilemap)
 
             # Draw everything
             screen.fill(BLACK)
             game.tilemap.draw(screen)
-            game.player.draw(screen)
-            game.opponents.draw(screen)
+            
+            # Draw all sprites at once using the sprite group
+            game.all_sprites.draw(screen)
             
             # Draw debug overlay if enabled
             if debug_overlay:
                 font = pygame.font.SysFont(None, 18)
                 # Player debug
-                px, py = int(game.player.px), int(game.player.py)
-                pygame.draw.circle(screen, (0,255,0), (px+TILE_SIZE//2, py+TILE_SIZE//2), 4)
-                player_text = font.render(f"P: ({game.player.x},{game.player.y}) px=({px},{py})", True, (0,255,0))
-                screen.blit(player_text, (px+TILE_SIZE, py))
+                px, py = game.player.get_pixel_position()
+                tx, ty = game.player.get_tile_position()
+                center_x, center_y = game.player.get_center_position()
+                
+                # Draw a circle at the center of the player
+                pygame.draw.circle(screen, (0,255,0), (center_x, center_y), 4)
+                
+                # Draw a rectangle around the player's tile
+                pygame.draw.rect(screen, (0,255,0), (tx*TILE_SIZE, ty*TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
+                
+                # Display both tile and pixel coordinates
+                player_text = font.render(f"P: ({tx},{ty}) px=({int(px)},{int(py)})", True, (0,255,0))
+                screen.blit(player_text, (int(px)+TILE_SIZE, int(py)))
                 # Opponent debug
-                for idx, (ox_px, oy_px) in enumerate(game.opponents.positions):
-                    ox, oy = int(ox_px // TILE_SIZE), int(oy_px // TILE_SIZE)
-                    pygame.draw.circle(screen, (255,0,0), (int(ox_px)+TILE_SIZE//2, int(oy_px)+TILE_SIZE//2), 4)
-                    opp_text = font.render(f"O{idx}: ({ox},{oy}) px=({int(ox_px)},{int(oy_px)})", True, (255,0,0))
-                    screen.blit(opp_text, (int(ox_px)+TILE_SIZE, int(oy_px)))
+                for idx, opponent in enumerate(game.opponents):
+                    # Get pixel and tile coordinates using the new methods
+                    px, py = opponent.get_pixel_position()
+                    tx, ty = opponent.get_tile_position()
+                    center_x, center_y = opponent.get_center_position()
+                    
+                    # Draw a circle at the center of the opponent
+                    pygame.draw.circle(screen, (255,0,0), (center_x, center_y), 4)
+                    
+                    # Draw a rectangle around the opponent's tile
+                    pygame.draw.rect(screen, (255,0,0), (tx*TILE_SIZE, ty*TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
+                    
+                    # Display both tile and pixel coordinates
+                    opp_text = font.render(f"O{idx}: ({tx},{ty}) px=({int(px)},{int(py)})", True, (255,0,0))
+                    screen.blit(opp_text, (int(px)+TILE_SIZE, int(py)))
                 for x in range(GRID_WIDTH):
                     for y in range(GRID_HEIGHT):
                         pygame.draw.rect(screen, (255,100,100), (x * TILE_SIZE, y * TILE_SIZE, 1, 1))

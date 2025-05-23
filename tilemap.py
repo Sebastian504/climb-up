@@ -27,6 +27,12 @@ class TileMap:
             pass
         return STONE
 
+    def get_tile_by_pixel_coords(self, px, py):
+        return self.get(int(px // TILE_SIZE), int(py // TILE_SIZE))
+
+    def is_ground(self, tile):
+        return tile in [EARTH, STONE]
+
     def set(self, x, y, value):
         try:
             if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
