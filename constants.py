@@ -9,9 +9,9 @@ SCREEN_HEIGHT = TILE_SIZE * GRID_HEIGHT
 
 # Tile types
 AIR = ' '
-EARTH = '#'
-STONE = 'S'
-LADDER = 'H'
+EARTH = '='
+STONE = '*'
+LADDER = '#'
 PLAYER = 'P'
 OPPONENT = 'O'
 EXIT = 'E'

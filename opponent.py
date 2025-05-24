@@ -30,7 +30,7 @@ class Opponent(pygame.sprite.Sprite):
     
     def get_center_position(self):
         """Return the center pixel position as a tuple (center_x, center_y)"""
-        return (self.rect.x + TILE_SIZE // 2, self.rect.y + TILE_SIZE // 2)
+        return self.get_pixel_position()
     
     def update(self, player, tilemap):
         # Get current tile coordinates
@@ -65,7 +65,7 @@ class Opponent(pygame.sprite.Sprite):
         #print("ttile=", target_tile, " btile=", below_target, " atile=", above_tile, " step=", step, " position=", (self.px, self.py), " tilepos=", self.get_tile_position())
         
         # Check if we're falling (not on solid ground or ladder)
-        is_falling = below_tile == AIR and current_tile != LADDER
+        is_falling = (below_tile == AIR and current_tile != LADDER) or (current_tile == AIR and self.rect.top < tilemap.get_pixel_coords_of_tile(x, y)[1])
         
         # Check if moving horizontally would cause a fall
         would_fall = target_tile not in [EARTH, STONE] and below_target == AIR
