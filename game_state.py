@@ -40,8 +40,7 @@ class Game:
                     self.tilemap.set(x, y, AIR)
                 elif tile == OPPONENT:
                     # Create opponent at the correct tile position
-                    # Add 1 to x to fix the positioning issue
-                    opponent = Opponent(x + 1, y)
+                    opponent = Opponent(x, y)  # Removed incorrect +1 offset
                     self.opponents.append(opponent)
                     self.opponents_group.add(opponent)
                     self.all_sprites.add(opponent)

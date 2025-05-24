@@ -50,90 +50,76 @@ class Opponent(pygame.sprite.Sprite):
         dx = player_center_x - center_x  # Horizontal distance to player
         dy = player_center_y - center_y  # Vertical distance to player
         
-        # Determine if player is above or below
-        player_is_above = dy < 0
-        player_is_below = dy > 0
-        
         # Determine horizontal direction toward player
-        step = (dx > 0) - (dx < 0)  # Move right if player is to the right, otherwise left, not at all if player is directly above or below
+        step = 1 if dx > 0 else -1 if dx < 0 else 0
         
-        # Check tiles in potential movement directions
-        x, y = self.get_tile_position()
-        target_tile = tilemap.get(x + step, y)      # Tile we would move into horizontally
-        below_target = tilemap.get(x + step, y + 1)  # Tile below our target position
-        above_tile = tilemap.get(x, y - 1)           # Tile above us
-        #print("ttile=", target_tile, " btile=", below_target, " atile=", above_tile, " step=", step, " position=", (self.px, self.py), " tilepos=", self.get_tile_position())
+        # Check if we're falling (no solid ground beneath us and not on a ladder)
+        is_falling = below_tile == AIR and current_tile != LADDER
         
-        # Check if we're falling (not on solid ground or ladder)
-        is_falling = (below_tile == AIR and current_tile != LADDER) or (current_tile == AIR and self.rect.top < tilemap.get_pixel_coords_of_tile(x, y)[1])
-        
-        # Check if moving horizontally would cause a fall
-        would_fall = target_tile not in [EARTH, STONE] and below_target == AIR
-        
-        # RULE 1: Apply gravity if falling
+        # STEP 1: Apply gravity if needed
         if is_falling:
             self.vy = MOVE_SPEED  # Fall down
-        
-        # RULE 2: Horizontal movement
-        else:  # Only move horizontally if not falling
-            # Check if moving would bring us closer to player AND we are not blocked:
-            if step != 0 and target_tile not in [EARTH, STONE]:
-                # If moving would cause a fall
-                if would_fall:
-                    # Only fall if player is below us
-                    if player_is_below:
-                        self.vx = step * MOVE_SPEED
-                else:
-                    # Safe to move horizontally (won't fall)
-                    self.vx = step * MOVE_SPEED
-            # RULE 3: Climb ladders based on player position
-            elif current_tile == LADDER:  # We're on a ladder
-                if player_is_above and above_tile not in [EARTH, STONE]:
-                    # Climb up if player is above and no obstacle
+        # STEP 2: If not falling, determine movement based on player position
+        else:
+            # Check if we're on a ladder
+            on_ladder = current_tile == LADDER
+            
+            # If on a ladder, decide whether to climb up/down
+            if on_ladder:
+                # Climb up if player is above
+                if dy < 0 and tilemap.get(x, y-1) != EARTH and tilemap.get(x, y-1) != STONE:
                     self.vy = -MOVE_SPEED
-                elif player_is_below and below_tile not in [EARTH, STONE]:
-                    # Climb down if player is below and no obstacle
+                # Climb down if player is below
+                elif dy > 0 and below_tile != EARTH and below_tile != STONE:
                     self.vy = MOVE_SPEED
-                # For horizontal movement from ladder, explicitly check target tile
-                elif target_tile not in [EARTH, STONE]:
-                    # Double-check the target tile at the exact position we'd move to
-                    x, y = self.get_tile_position()
-                    next_tile_x = x + step
-                    if tilemap.get(next_tile_x, y) not in [EARTH, STONE]:
-                        # Only move horizontally if the target tile is not a wall
-                        self.vx = step * MOVE_SPEED
-            else: # don't move   
-                self.vx = 0
-                self.vy = 0
+            
+            # Decide on horizontal movement
+            target_tile = tilemap.get(x + step, y)  # Tile we would move into
+            below_target = tilemap.get(x + step, y + 1)  # Tile below our target
+            
+            # Only move horizontally if we won't hit a wall
+            if target_tile != EARTH and target_tile != STONE:
+                # Check if moving would cause a fall
+                would_fall = below_target == AIR and target_tile != LADDER
+                
+                # Only move if it's safe or if player is below (worth falling for)
+                if not would_fall or dy > 0:
+                    self.vx = step * MOVE_SPEED
         
-
+        # Apply movement with collision detection
+        self._apply_movement(tilemap)
+    
+    def _apply_movement(self, tilemap):
+        # Apply horizontal movement first
+        if self.vx != 0:
+            # Calculate next position
+            next_x = self.rect.x + self.vx
+            
+            # Check for collision with walls
+            next_tile_x = int((next_x + (TILE_SIZE-1 if self.vx > 0 else 0)) // TILE_SIZE)
+            current_tile_y = int(self.rect.centery // TILE_SIZE)
+            
+            # Don't move into walls
+            if tilemap.get(next_tile_x, current_tile_y) not in [EARTH, STONE]:
+                self.rect.x = next_x
         
-        # Calculate next position in pixel coordinates
-        next_x = self.rect.x + self.vx
-        next_y = self.rect.y + self.vy
-        
-        # Convert to tile coordinates for final collision check
-        next_tile_x = int(next_x // TILE_SIZE)
-        next_tile_y = int(next_y // TILE_SIZE)
-        
-        # If moving horizontally, check the leading edge
-        if self.vx > 0:  # Moving right
-            edge_x = next_x + TILE_SIZE - 1
-            edge_tile_x = int(edge_x // TILE_SIZE)
-            # Check if we would move into a wall
-            if tilemap.get(edge_tile_x, next_tile_y) in [EARTH, STONE]:
-                # Don't allow moving into walls
-                next_x = self.rect.x
-        elif self.vx < 0:  # Moving left
-            edge_tile_x = int(next_x // TILE_SIZE)
-            # Check if we would move into a wall
-            if tilemap.get(edge_tile_x, next_tile_y) in [EARTH, STONE]:
-                # Don't allow moving into walls
-                next_x = self.rect.x
-        
-        # Update the position
-        self.rect.x = next_x
-        self.rect.y = next_y
+        # Then apply vertical movement
+        if self.vy != 0:
+            # Calculate next position
+            next_y = self.rect.y + self.vy
+            
+            # Check for collision with floor/ceiling
+            current_tile_x = int(self.rect.centerx // TILE_SIZE)
+            next_tile_y = int((next_y + (TILE_SIZE-1 if self.vy > 0 else 0)) // TILE_SIZE)
+            
+            # Don't move into walls
+            if tilemap.get(current_tile_x, next_tile_y) not in [EARTH, STONE]:
+                self.rect.y = next_y
+            else:
+                # If we hit the ground, stop falling
+                if self.vy > 0:
+                    # Align to the top of the tile we hit
+                    self.rect.y = next_tile_y * TILE_SIZE - TILE_SIZE
     
     def draw(self, surface):
         # Draw the sprite directly to the surface

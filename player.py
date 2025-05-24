@@ -36,30 +36,81 @@ class Player(pygame.sprite.Sprite):
         """Return the center pixel position as a tuple (center_x, center_y)"""
         return self.get_pixel_position()
 
+    def _snap_to_current_tile_x(self):
+        """Snap the player's x position to the center of the current tile"""
+        self.rect.x = int(self.rect.centerx // TILE_SIZE) * TILE_SIZE
+
+    def _snap_to_current_tile_y(self):
+        """Snap the player's y position to the center of the current tile"""
+        self.rect.y = int(self.rect.centery // TILE_SIZE) * TILE_SIZE
+
+    def _snap_to_current_tile_xy(self):
+        self.snap_to_current_tile_x()
+        self.snap_to_current_tile_y()
+
     def handle_input(self, keys, tilemap, current_time):
-        # Process horizontal movement input
-        self._process_horizontal_input(keys)
-        
-        # Get current position info
-        current_tile_x, current_y, px_in_tile = self._get_current_position()
-        
-        # Process vertical movement
-        self._process_vertical_movement(keys, tilemap, current_tile_x, current_y, px_in_tile)
-        
-        # Update animation state
+        bottom_y = self.rect.bottom   
+        tile_just_below_bottom = tilemap.get_tile_by_pixel_coords(self.rect.centerx, bottom_y + 1)
+        # if we are not supported below the bottom pixel, then fall
+        if not (tilemap.is_standable(tile_just_below_bottom) or self._check_on_ladder(tilemap)):
+            self.vy += GRAVITY
+            self.vx = 0
+            self.state = "falling"
+        # else look at input in keys and act accordingly:
+        else:
+            self.state = "" # needs to be set
+            self._process_horizontal_input(keys)
+            self.vy = 0
+            
+            # if we want to go up
+            if keys[pygame.K_UP]:
+                on_ladder = self._check_bottom_on_ladder(tilemap)
+                if on_ladder:
+                    self.vy = -MOVE_SPEED
+                    self.state = "climbing"
+                    #print("move up with ", self.vy)
+            elif keys[pygame.K_DOWN]:
+                on_ladder = self._check_on_ladder(tilemap)
+                # we can only move down if we are on a ladder and have not yet reached the ground
+                if on_ladder and not self._check_bottom_on_ground(tilemap):
+                    self.vy = MOVE_SPEED
+                    self.state = "climbing"
+                    
         self._update_animation_state(current_time)
-        
-        # Apply horizontal movement with collision detection
-        self._apply_horizontal_movement(tilemap, current_tile_x, current_y)
-        
-        # Apply vertical movement
-        self._apply_vertical_movement()
-        
         # Handle special actions (digging)
-        self._handle_special_actions(keys, tilemap)
+        self._handle_special_actions(keys, tilemap)    
+
+        # Apply horizontal movement with collision detection
+        self._apply_horizontal_movement(tilemap)
         
-        # Check for landing after falling
-        self._check_landing(tilemap, current_tile_x, current_y)
+        # snap to tile in x direction depending on movement type
+        self._apply_snapping()
+
+        # Apply vertical movement
+        self._apply_vertical_movement(tilemap)    
+
+    def _apply_snapping(self):
+        if self.state in ["climbing", "falling"]:
+            self._snap_to_current_tile_x()
+        if self.state in ["running"]:
+            self._snap_to_current_tile_y()
+
+    def _check_on_ladder(self, tilemap):
+        """Check if player is on or directly above a ladder"""
+        position = self.get_tile_position()
+        on_ladder = tilemap.get(position[0], position[1]) == LADDER or tilemap.get(position[0], position[1] + 1) == LADDER
+        return on_ladder
+
+    def _check_bottom_on_ladder(self, tilemap):
+        """Check is bottom pixel of player is on a ladder tile"""
+        on_ladder = tilemap.get_tile_by_pixel_coords(self.rect.centerx, self.rect.bottom - 1) == LADDER 
+        return on_ladder
+
+    def _check_current_tile_is_ladder(self, tilemap):
+        """Check if player is on the ladder. Above is not enough (more strict that _check_on_ladder)"""
+        position = self.get_tile_position()
+        on_ladder = tilemap.get(position[0], position[1]) == LADDER
+        return on_ladder        
 
     def _process_horizontal_input(self, keys):
         """Process left/right movement input"""
@@ -72,90 +123,32 @@ class Player(pygame.sprite.Sprite):
         else:
             self.vx = 0
     
-    def _get_current_position(self):
-        """Calculate current position and tile information"""
-        current_tile_x = int(self.rect.centerx // TILE_SIZE)
-        current_y = int(self.rect.centery // TILE_SIZE)
-        px_in_tile = (self.rect.centerx - TILE_SIZE // 2) % TILE_SIZE
-        return current_tile_x, current_y, px_in_tile
-    
-    def _check_ladder_interaction(self, tilemap):
-        """Check if player is on or near a ladder"""
-        position = self.get_tile_position()
-        on_ladder = tilemap.get(position[0], position[1]) == LADDER
-        
-        return on_ladder
-    
-    def _find_nearest_ladder(self, tilemap, current_tile_x, current_y, px_in_tile):
-        """Find the nearest ladder that can be mounted"""
-        target_x = None
-        if tilemap.get(current_tile_x, current_y) == LADDER:
-            target_x = current_tile_x
-        elif tilemap.get(current_tile_x, current_y + 1) == LADDER:
-            target_x = current_tile_x
-        elif tilemap.get(current_tile_x - 1, current_y) == LADDER and px_in_tile < 3:
-            target_x = current_tile_x - 1
-        elif tilemap.get(current_tile_x + 1, current_y) == LADDER and px_in_tile > TILE_SIZE - 3:
-            target_x = current_tile_x + 1
-        else:
-            target_x = None
-        return target_x
-    
-    def _center_on_ladder(self):
-        """Center the player on a ladder by snapping to the center of the current tile"""
-        # compute the x coordinate to be in the middle of the current tile
-        self.rect.centerx = self.get_tile_position()[0] * TILE_SIZE + TILE_SIZE // 2
-    
-    def _process_vertical_movement(self, keys, tilemap, current_tile_x, current_y, px_in_tile):
-        """Process climbing up/down ladders and falling"""
-        # Check tile below player
-        below = tilemap.get(current_tile_x, current_y + 1)
-        on_ladder = self._check_ladder_interaction(tilemap)
-        lower_edge_on_ladder = tilemap.get_tile_by_pixel_coords(self.rect.centerx, self.rect.bottom - 1) == LADDER
-        above_ladder = tilemap.get(current_tile_x, current_y + 1) == LADDER
-        
-        # Climbing up
-        if keys[pygame.K_UP]:
-            #print(lower_edge_on_ladder, tilemap.get_tile_by_pixel_coords(self.rect.centerx, self.rect.bottom))
-            if lower_edge_on_ladder:            
-                self._center_on_ladder()
-                self.vy = -MOVE_SPEED
-                self.state = "climbing"
+    def _check_bottom_on_ground(self, tilemap):
+        """Check if bottom pixel of player is on a ground tile"""
+        on_ground = tilemap.get_tile_by_pixel_coords(self.rect.centerx, self.rect.bottom) in [EARTH, STONE]
+        return on_ground
+
+    def _check_top_against_ground(self, tilemap):
+        """Check if the top of the player touches ground from the bottom"""
+        against_ground = tilemap.get_tile_by_pixel_coords(self.rect.centerx, self.rect.top - 1) in [EARTH, STONE]
+        return against_ground
+
+    def _apply_vertical_movement(self, tilemap):
+        """Apply vertical movement"""
+        if self.vy > 0:
+            if not self._check_bottom_on_ground(tilemap):
+                self.rect.y += self.vy
             else:
-                self.vy = 0
-                self.state = "idle"
-            
-        
-        # Climbing down
-        elif keys[pygame.K_DOWN]:
-        
-            if on_ladder:
-                self._center_on_ladder()
-                # check that the bottom edge of the player has not yet reached the ground below the ladder
-                bottom_of_player = self.rect.bottom
-                tile_at_lower_end = tilemap.get_tile_by_pixel_coords(self.rect.centerx, bottom_of_player)
-                if tilemap.is_ground(tile_at_lower_end):
-                    self.vy = 0
-                else:
-                    self.vy = MOVE_SPEED
-                    self.state = "climbing"
-            elif above_ladder:
-                self._center_on_ladder()
-                self.vy = MOVE_SPEED
-                self.state = "climbing"
+                self._snap_to_current_tile_y()
+        elif self.vy < 0:
+            if not self._check_top_against_ground(tilemap):
+                self.rect.y += self.vy
             else:
-                self.vy = 0
-                self.state = "idle"
-        
-        # Falling
-        elif not (tilemap.get(current_tile_x, current_y + 1) in [EARTH, STONE, LADDER]) and not on_ladder:
-            self.vy += GRAVITY
-            self.state = "falling"
-        
-        # Standing on solid ground
-        else:
-            self.vy = 0
-    
+                self._snap_to_current_tile_y()
+
+    def _center_on_tile(self):
+        self._snap_to_current_tile_x()
+
     def _update_animation_state(self, current_time):
         """Update animation state based on movement"""
         if self.state not in ["climbing", "falling"]:
@@ -169,32 +162,18 @@ class Player(pygame.sprite.Sprite):
             self.anim_timer = current_time
         self.prev_state = self.state
     
-    def _apply_horizontal_movement(self, tilemap, current_tile_x, current_y):
+    def _apply_horizontal_movement(self, tilemap):
         """Apply horizontal movement with collision detection"""
         next_x = self.rect.x + self.vx
         edge_x = next_x + TILE_SIZE - 1 if self.vx > 0 else next_x
         next_tile_x = int(edge_x // TILE_SIZE)
         next_tile_y = int(self.rect.y // TILE_SIZE)
         
-        # When moving horizontally off a ladder, check both current and target positions
-        if self.state == "climbing" and self.vx != 0:
-            # Get the grid-aligned y position
-            grid_y = (next_tile_y * TILE_SIZE)
-            # If we're slightly above the grid and there's ground at either position, snap to grid
-            current_tile_x = int(self.rect.x // TILE_SIZE)
-            if self.rect.y < grid_y + TILE_SIZE and (
-                tilemap.get(current_tile_x, next_tile_y + 1) in [EARTH, STONE] or
-                tilemap.get(next_tile_x, next_tile_y + 1) in [EARTH, STONE]
-            ):
-                self.rect.y = grid_y
-        
         # Move horizontally if not blocked by a wall
         if not tilemap.get(next_tile_x, next_tile_y) in [EARTH, STONE]:
             self.rect.x = next_x
-    
-    def _apply_vertical_movement(self):
-        """Apply vertical movement"""
-        self.rect.y += self.vy
+
+            
     
     def _handle_special_actions(self, keys, tilemap):
         """Handle special actions like digging"""

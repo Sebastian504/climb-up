@@ -87,6 +87,9 @@ class TileMap:
     def is_ground(self, tile):
         return tile in [EARTH, STONE]
 
+    def is_standable(self, tile):
+        return tile in [EARTH, STONE, LADDER]
+
     def set(self, x, y, value):
         try:
             if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:

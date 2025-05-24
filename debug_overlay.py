@@ -9,6 +9,7 @@ def draw_debug_overlay(screen, game, y_offset=0):
     # Player debug
     tx, ty = game.player.get_tile_position()
     px, py = game.player.get_pixel_position()
+    t, b = game.player.rect.top, game.player.rect.bottom
     center_x, center_y = game.player.get_center_position()
     
     # Draw a circle at the center of the player
@@ -18,7 +19,8 @@ def draw_debug_overlay(screen, game, y_offset=0):
     pygame.draw.rect(screen, (0,255,0), (tx*TILE_SIZE, ty*TILE_SIZE + y_offset, TILE_SIZE, TILE_SIZE), 1)
     
     # Display both tile and pixel coordinates
-    player_text = font.render(f"P: ({tx},{ty}) px=({int(px)},{int(py)})", True, (0,255,0))
+    state = game.player.state 
+    player_text = font.render(f"P: ({tx},{ty})({int(t)},{int(b)}){state}", True, (0,255,0))
     screen.blit(player_text, (int(px)+TILE_SIZE, int(py) + y_offset))
     
     # Opponent debug
