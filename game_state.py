@@ -59,6 +59,11 @@ class Game:
         # Check if time ran out
         if self.time_remaining <= 0:
             return True
+        
+        # Check if player fell to the bottom of the level
+        player_x, player_y = self.player.get_tile_position()
+        if player_y >= self.tilemap.height - 1:
+            return True
             
         return False
 

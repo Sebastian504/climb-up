@@ -1,13 +1,62 @@
 # character.py
+import os
 import pygame
 from constants import *
 
 class Character(pygame.sprite.Sprite):
+    # Class-level sprite cache (shared across instances)
+    _sprites_loaded = False
+    _sprites = {}
+    
+    @classmethod
+    def _load_sprite_sheet(cls, path, frame_width, frame_height):
+        """Load a sprite sheet and slice it into frames (assumes 1 column, N rows)"""
+        sheet = pygame.image.load(path).convert_alpha()
+        sheet_width, sheet_height = sheet.get_size()
+        num_frames = sheet_height // frame_height
+        frames = []
+        for i in range(num_frames):
+            frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+            frame.blit(sheet, (0, 0), (0, i * frame_height, frame_width, frame_height))
+            frames.append(frame)
+        return frames
+    
+    @classmethod
+    def _load_sprites(cls):
+        """Load sprite images (called once)"""
+        if cls._sprites_loaded:
+            return
+        
+        sprites_dir = os.path.join(os.path.dirname(__file__), 'sprites')
+        
+        # Load idle sprite (single frame)
+        idle_path = os.path.join(sprites_dir, 'idle.png')
+        if os.path.exists(idle_path):
+            cls._sprites['idle'] = [pygame.image.load(idle_path).convert_alpha()]
+        
+        # Load running_right sprite sheet (6 frames, 1 col x 6 rows)
+        running_right_path = os.path.join(sprites_dir, 'running_right.png')
+        if os.path.exists(running_right_path):
+            frames_right = cls._load_sprite_sheet(running_right_path, TILE_SIZE, TILE_SIZE)
+            cls._sprites['running_right'] = frames_right
+            # Create running_left by flipping each frame horizontally
+            cls._sprites['running_left'] = [pygame.transform.flip(f, True, False) for f in frames_right]
+        
+        cls._sprites_loaded = True
+    
     def __init__(self, x, y, color):
         super().__init__()
-        # Create a surface for the character
-        self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
-        self.image.fill(color)
+        # Load sprites if not already loaded
+        Character._load_sprites()
+        
+        # Create a fallback surface (solid color)
+        self.fallback_image = pygame.Surface((TILE_SIZE, TILE_SIZE))
+        self.fallback_image.fill(color)
+        
+        # Set initial image
+        idle_frames = self._sprites.get('idle', [self.fallback_image])
+        self.image = idle_frames[0]
+        
         # Create a rect for positioning (top-left corner aligned with tile)
         self.rect = self.image.get_rect()
         self.rect.x = x * TILE_SIZE
@@ -160,6 +209,15 @@ class Character(pygame.sprite.Sprite):
             self.anim_frame = 0
             self.anim_timer = current_time
         self.prev_state = self.state
+        
+        # Advance animation frame based on time
+        anim_speed = 100  # ms per frame
+        if current_time - self.anim_timer >= anim_speed:
+            self.anim_frame += 1
+            self.anim_timer = current_time
+        
+        # Update sprite image based on state and facing
+        self._update_sprite()
     
     def _apply_horizontal_movement(self, tilemap):
         """Apply horizontal movement with collision detection"""
@@ -182,6 +240,25 @@ class Character(pygame.sprite.Sprite):
             dig_y = y + 1
             if tilemap.get(dig_x, dig_y) == EARTH:
                 tilemap.set(dig_x, dig_y, AIR)
+    
+    def _update_sprite(self):
+        """Update the current sprite image based on state and facing direction"""
+        fallback_frames = [self.fallback_image]
+        
+        if self.state == "running":
+            if self.facing == DIR_RIGHT:
+                frames = self._sprites.get('running_right', fallback_frames)
+            else:
+                frames = self._sprites.get('running_left', fallback_frames)
+        elif self.state == "idle":
+            frames = self._sprites.get('idle', fallback_frames)
+        else:
+            # For climbing/falling, use idle or fallback for now
+            frames = self._sprites.get('idle', fallback_frames)
+        
+        # Cycle through frames
+        frame_index = self.anim_frame % len(frames)
+        self.image = frames[frame_index]
     
     def draw(self, surface):
         # Draw the sprite directly to the surface
