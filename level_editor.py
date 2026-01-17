@@ -2,6 +2,7 @@
 import pygame
 import sys
 import os
+import time
 import tkinter as tk
 from tkinter import filedialog
 from constants import *
@@ -295,6 +296,24 @@ class LevelEditor:
         if grid_pos:
             x, y = grid_pos
             
+            # First check if we're placing AIR and there's an entity to remove
+            if tile == AIR:
+                # Check if player is at this position
+                if self.game_state.player:
+                    px, py = self.game_state.player.get_tile_position()
+                    if px == x and py == y:
+                        self.game_state.player = None
+                        self.modified = True
+                
+                # Check if any opponent is at this position
+                for i, opponent in enumerate(self.game_state.opponents[:]):
+                    ox, oy = opponent.get_tile_position()
+                    if ox == x and oy == y:
+                        # Remove this opponent
+                        opponent.kill()  # Remove from sprite groups
+                        self.game_state.opponents.remove(opponent)
+                        self.modified = True
+            
             # Handle special tiles (player, opponent) separately
             if tile == PLAYER:
                 # Create or move player
@@ -413,11 +432,14 @@ class LevelEditor:
         title = font.render("Edit Level Timer", True, WHITE)
         message = font.render("Enter new timer (mm:ss):", True, WHITE)
         current_timer = self.game_state.get_timer_string()
-        timer_text = font.render(current_timer, True, WHITE)
+        
+        # Create a text input area
+        input_rect = pygame.Rect(dialog_width // 2 - 60, 110, 120, 30)
+        pygame.draw.rect(dialog_surface, WHITE, input_rect)
+        pygame.draw.rect(dialog_surface, BLACK, input_rect, 1)
         
         dialog_surface.blit(title, (dialog_width // 2 - title.get_width() // 2, 30))
         dialog_surface.blit(message, (dialog_width // 2 - message.get_width() // 2, 70))
-        dialog_surface.blit(timer_text, (dialog_width // 2 - timer_text.get_width() // 2, 110))
         
         self.screen.blit(dialog_surface, (dialog_x, dialog_y))
         pygame.display.flip()
@@ -440,9 +462,22 @@ class LevelEditor:
                         waiting = False
                         new_timer = current_timer
             
-            # Update the timer text
-            timer_text = font.render(new_timer, True, WHITE)
-            dialog_surface.blit(timer_text, (dialog_width // 2 - timer_text.get_width() // 2, 110))
+            # Redraw the dialog surface to clear previous text
+            dialog_surface.fill(GRAY)
+            pygame.draw.rect(dialog_surface, BLACK, (0, 0, dialog_width, dialog_height), 2)
+            dialog_surface.blit(title, (dialog_width // 2 - title.get_width() // 2, 30))
+            dialog_surface.blit(message, (dialog_width // 2 - message.get_width() // 2, 70))
+            
+            # Redraw the input box
+            pygame.draw.rect(dialog_surface, WHITE, input_rect)
+            pygame.draw.rect(dialog_surface, BLACK, input_rect, 1)
+            
+            # Draw the current timer text
+            timer_text = font.render(new_timer, True, BLACK)
+            timer_rect = timer_text.get_rect(center=input_rect.center)
+            dialog_surface.blit(timer_text, timer_rect)
+            
+            # Draw to screen
             self.screen.blit(dialog_surface, (dialog_x, dialog_y))
             pygame.display.flip()
         
@@ -451,6 +486,9 @@ class LevelEditor:
             if new_timer.count(':') == 1:
                 minutes, seconds = map(int, new_timer.split(':'))
                 self.game_state.timer_seconds = minutes * 60 + seconds
+                # Reset the timer start time to ensure time_remaining is correct
+                self.game_state.start_time = time.time()
+                self.game_state.time_remaining = self.game_state.timer_seconds
                 self.modified = True
         except (ValueError, IndexError):
             pass  # Keep the current timer if there's an error
